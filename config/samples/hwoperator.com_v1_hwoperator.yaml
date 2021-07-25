@@ -3,5 +3,7 @@ kind: HwOperator
 metadata:
   name: hwoperator-sample
 spec:
-  # Add fields here
-  foo: bar
+  replicas: 2
+  host: hwoperator.com
+  image: nginx:latest
+

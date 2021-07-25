@@ -29,7 +29,9 @@ type HwOperatorSpec struct {
 	// Important: Run "make" to regenerate code after modifying this file
 
 	// Foo is an example field of HwOperator. Edit hwoperator_types.go to remove/update
-	Foo string `json:"foo,omitempty"`
+	Replicas string `json:"replicas,omitempty"`
+	Host     string `json:"host,omitempty"`
+	Image    string `json:"image,omitempty"`
 }
 
 // HwOperatorStatus defines the observed state of HwOperator
