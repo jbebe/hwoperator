@@ -5,7 +5,7 @@ metadata:
   name: hwoperator-viewer-role
 rules:
 - apiGroups:
-  - hwoperator.com.hwoperator.com
+  - hwoperator.com
   resources:
   - hwoperators
   verbs:
@@ -13,7 +13,7 @@ rules:
   - list
   - watch
 - apiGroups:
-  - hwoperator.com.hwoperator.com
+  - hwoperator.com
   resources:
   - hwoperators/status
   verbs:

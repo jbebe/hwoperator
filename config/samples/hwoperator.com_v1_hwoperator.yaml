@@ -5,5 +5,5 @@ metadata:
 spec:
   replicas: 2
   host: hwoperator.com
-  image: nginx:latest
+  image: "nginx:latest"
 

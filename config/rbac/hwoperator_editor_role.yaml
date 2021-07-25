@@ -5,7 +5,7 @@ metadata:
   name: hwoperator-editor-role
 rules:
 - apiGroups:
-  - hwoperator.com.hwoperator.com
+  - hwoperator.com
   resources:
   - hwoperators
   verbs:
@@ -17,7 +17,7 @@ rules:
   - update
   - watch
 - apiGroups:
-  - hwoperator.com.hwoperator.com
+  - hwoperator.com
   resources:
   - hwoperators/status
   verbs:
