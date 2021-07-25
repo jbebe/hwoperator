@@ -1,0 +1,7 @@
+apiVersion: hwoperator.com.hwoperator.com/v1
+kind: HwOperator
+metadata:
+  name: hwoperator-sample
+spec:
+  # Add fields here
+  foo: bar

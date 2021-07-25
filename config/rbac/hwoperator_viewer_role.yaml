@@ -1,0 +1,20 @@
+# permissions for end users to view hwoperators.
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: hwoperator-viewer-role
+rules:
+- apiGroups:
+  - hwoperator.com.hwoperator.com
+  resources:
+  - hwoperators
+  verbs:
+  - get
+  - list
+  - watch
+- apiGroups:
+  - hwoperator.com.hwoperator.com
+  resources:
+  - hwoperators/status
+  verbs:
+  - get
