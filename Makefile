@@ -88,6 +88,17 @@ vet: ## Run go vet against code.
 test: manifests generate fmt vet envtest ## Run tests.
 	go test ./... -coverprofile cover.out
 
+##@ Custom commands
+hw-up: build docker-build docker-push deploy sample-create
+
+hw-down: sample-remove undeploy
+
+sample-create: ## Create sample HwOperator
+	kubectl apply -f config/samples/hwoperator.com_v1_hwoperator.yaml
+
+sample-remove: ## Remove sample HwOperator
+	kubectl delete -f config/samples/hwoperator.com_v1_hwoperator.yaml
+
 ##@ Build
 
 build: generate fmt vet ## Build manager binary.
