@@ -1,0 +1,34 @@
+
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  creationTimestamp: null
+  name: manager-role
+rules:
+- apiGroups:
+  - hwoperator.com.hwoperator.com
+  resources:
+  - hwoperators
+  verbs:
+  - create
+  - delete
+  - get
+  - list
+  - patch
+  - update
+  - watch
+- apiGroups:
+  - hwoperator.com.hwoperator.com
+  resources:
+  - hwoperators/finalizers
+  verbs:
+  - update
+- apiGroups:
+  - hwoperator.com.hwoperator.com
+  resources:
+  - hwoperators/status
+  verbs:
+  - get
+  - patch
+  - update

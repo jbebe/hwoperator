@@ -1,4 +1,4 @@
-apiVersion: hwoperator.com.hwoperator.com/v1
+apiVersion: hwoperator-sample.com/v1
 kind: HwOperator
 metadata:
   name: hwoperator-sample

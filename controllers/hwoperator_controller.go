@@ -19,9 +19,16 @@ package controllers
 import (
 	"context"
 
+	appsv1 "k8s.io/api/apps/v1"
+	corev1 "k8s.io/api/core/v1"
+	"k8s.io/apimachinery/pkg/api/errors"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
+	"k8s.io/apimachinery/pkg/types"
+	"k8s.io/apimachinery/pkg/util/intstr"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
+	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
 	"sigs.k8s.io/controller-runtime/pkg/log"
 
 	hwoperatorcomv1 "github.com/jbebe/hwoperator/api/v1"
@@ -48,8 +55,39 @@ type HwOperatorReconciler struct {
 // - https://pkg.go.dev/sigs.k8s.io/controller-runtime@v0.9.2/pkg/reconcile
 func (r *HwOperatorReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
 	_ = log.FromContext(ctx)
+	reqLogger := log.Log.WithValues("Request.Namespace", req.Namespace, "Request.Name", req.Name)
+	reqLogger.Info("Reconciling HwOperator")
 
-	// your logic here
+	// Fetch HwOperator instance
+	instance := &hwoperatorcomv1.HwOperator{}
+	err := r.Client.Get(context.TODO(), req.NamespacedName, instance)
+	if err != nil {
+		if errors.IsNotFound(err) {
+			// Request object not found, could have been deleted after reconcile request.
+			return ctrl.Result{}, nil
+		}
+		// Error reading the object - requeue the request.
+		return ctrl.Result{}, err
+	}
+
+	// Check if this Deployment already exists
+	found := &appsv1.Deployment{}
+	err = r.Client.Get(context.TODO(), types.NamespacedName{Name: instance.Name, Namespace: instance.Namespace}, found)
+
+	var result *ctrl.Result
+	result, err = r.EnsureDeployment(req, instance, r.CreateFrontendDeployment(instance))
+	if result != nil {
+		return *result, err
+	}
+
+	result, err = r.EnsureService(req, instance, r.CreateFrontendService(instance))
+	if result != nil {
+		return *result, err
+	}
+
+	// Deployment and Service already exists - don't requeue
+	reqLogger.Info("Skip reconcile: Deployment and service already exists",
+		"Deployment.Namespace", found.Namespace, "Deployment.Name", found.Name)
 
 	return ctrl.Result{}, nil
 }
@@ -59,4 +97,135 @@ func (r *HwOperatorReconciler) SetupWithManager(mgr ctrl.Manager) error {
 	return ctrl.NewControllerManagedBy(mgr).
 		For(&hwoperatorcomv1.HwOperator{}).
 		Complete(r)
+}
+
+func (r *HwOperatorReconciler) CreateFrontendService(v *hwoperatorcomv1.HwOperator) *corev1.Service {
+	// Build a Service and deploys
+	s := &corev1.Service{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      "frontend-service",
+			Namespace: v.Namespace,
+		},
+		Spec: corev1.ServiceSpec{
+			Selector: map[string]string{
+				"tier": "frontend",
+			},
+			Ports: []corev1.ServicePort{{
+				Protocol:   corev1.ProtocolTCP,
+				Port:       80,
+				TargetPort: intstr.FromInt(80),
+				NodePort:   30685,
+			}},
+			Type: corev1.ServiceTypeNodePort,
+		},
+	}
+
+	controllerutil.SetControllerReference(v, s, r.Scheme)
+	return s
+}
+
+func (r *HwOperatorReconciler) CreateFrontendDeployment(v *hwoperatorcomv1.HwOperator) *appsv1.Deployment {
+	dep := &appsv1.Deployment{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      "nginx-frontend",
+			Namespace: v.Namespace,
+		},
+		Spec: appsv1.DeploymentSpec{
+			Replicas: &v.Spec.Replicas,
+			Selector: &metav1.LabelSelector{
+				MatchLabels: map[string]string{
+					"tier": "frontend",
+				},
+			},
+			Template: corev1.PodTemplateSpec{
+				ObjectMeta: metav1.ObjectMeta{
+					Labels: map[string]string{
+						"tier": "frontend",
+					},
+				},
+				Spec: corev1.PodSpec{
+					Containers: []corev1.Container{{
+						Image:           v.Spec.Image,
+						ImagePullPolicy: corev1.PullAlways,
+						Name:            "nginx-frontend",
+						Ports: []corev1.ContainerPort{{
+							ContainerPort: 80,
+							Name:          "frontend",
+						}},
+					}},
+				},
+			},
+		},
+	}
+
+	controllerutil.SetControllerReference(v, dep, r.Scheme)
+	return dep
+}
+
+func (r *HwOperatorReconciler) EnsureService(request ctrl.Request,
+	instance *hwoperatorcomv1.HwOperator,
+	s *corev1.Service,
+) (*ctrl.Result, error) {
+
+	// See if service already exists and create if it doesn't
+	found := &appsv1.Deployment{}
+	err := r.Client.Get(context.TODO(), types.NamespacedName{
+		Name:      s.Name,
+		Namespace: instance.Namespace,
+	}, found)
+	if err != nil && errors.IsNotFound(err) {
+
+		// Create the service
+		log.Log.Info("Creating a new Service", "Service.Namespace", s.Namespace, "Service.Name", s.Name)
+		err = r.Client.Create(context.TODO(), s)
+
+		if err != nil {
+			// Service creation failed
+			log.Log.Error(err, "Failed to create new Service", "Service.Namespace", s.Namespace, "Service.Name", s.Name)
+			return &ctrl.Result{}, err
+		} else {
+			// Service creation was successful
+			return nil, nil
+		}
+	} else if err != nil {
+		// Error that isn't due to the service not existing
+		log.Log.Error(err, "Failed to get Service")
+		return &ctrl.Result{}, err
+	}
+
+	return nil, nil
+}
+
+func (r *HwOperatorReconciler) EnsureDeployment(
+	request ctrl.Request, instance *hwoperatorcomv1.HwOperator, dep *appsv1.Deployment,
+) (*ctrl.Result, error) {
+
+	// See if deployment already exists and create if it doesn't
+	found := &appsv1.Deployment{}
+	err := r.Client.Get(context.TODO(), types.NamespacedName{
+		Name:      dep.Name,
+		Namespace: instance.Namespace,
+	}, found)
+	if err != nil && errors.IsNotFound(err) {
+		// Create the deployment
+		log.Log.Info("Creating a new Deployment", "Deployment.Namespace",
+			dep.Namespace, "Deployment.Name", dep.Name)
+		err = r.Client.Create(context.TODO(), dep)
+
+		if err != nil {
+			// Deployment failed
+			log.Log.Error(err, "Failed to create new Deployment",
+				"Deployment.Namespace", dep.Namespace, "Deployment.Name", dep.Name)
+			return &ctrl.Result{}, err
+		} else {
+			// Deployment was successful
+			return nil, nil
+		}
+	} else if err != nil {
+		// Error that isn't due to the deployment not existing
+		log.Log.Error(err, "Failed to get Deployment")
+		return &ctrl.Result{}, err
+	}
+
+	return nil, nil
 }

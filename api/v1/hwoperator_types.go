@@ -28,10 +28,14 @@ type HwOperatorSpec struct {
 	// INSERT ADDITIONAL SPEC FIELDS - desired state of cluster
 	// Important: Run "make" to regenerate code after modifying this file
 
-	// Foo is an example field of HwOperator. Edit hwoperator_types.go to remove/update
-	Replicas string `json:"replicas,omitempty"`
-	Host     string `json:"host,omitempty"`
-	Image    string `json:"image,omitempty"`
+	// Number of replicant(?) to create
+	Replicas int32 `json:"replicas,omitempty"`
+
+	// Host url of the web service
+	Host string `json:"host,omitempty"`
+
+	// Image to use for frontend server
+	Image string `json:"image,omitempty"`
 }
 
 // HwOperatorStatus defines the observed state of HwOperator
