@@ -99,6 +99,8 @@ sample-create: ## Create sample HwOperator
 sample-remove: ## Remove sample HwOperator
 	kubectl delete -f config/samples/hwoperator.com_v1_hwoperator.yaml
 
+github-publish: build manifests docker-build docker-push
+
 ##@ Build
 
 build: generate fmt vet ## Build manager binary.
