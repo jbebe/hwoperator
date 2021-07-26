@@ -9,3 +9,5 @@
 * cert-manager
   * https://cert-manager.io/docs/installation/
   * kubectl apply -f https://github.com/jetstack/cert-manager/releases/latest/download/cert-manager.yaml
+  
+* cluster issuer: `kubectl apply -n cert-manager -f cluster-issuer.yaml`
