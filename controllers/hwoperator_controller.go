@@ -21,6 +21,7 @@ import (
 
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
+	networkingv1beta1 "k8s.io/api/networking/v1beta1"
 	"k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
@@ -61,8 +62,8 @@ func (r *HwOperatorReconciler) Reconcile(ctx context.Context, req ctrl.Request) 
 	reqLogger.Info("Reconciling HwOperator")
 
 	// Fetch HwOperator instance
-	instance := &hwoperatorcomv1.HwOperator{}
-	err := r.Client.Get(context.TODO(), req.NamespacedName, instance)
+	operatorInstance := &hwoperatorcomv1.HwOperator{}
+	err := r.Client.Get(context.TODO(), req.NamespacedName, operatorInstance)
 	if err != nil {
 		if errors.IsNotFound(err) {
 			// Request object not found, could have been deleted after reconcile request.
@@ -74,15 +75,26 @@ func (r *HwOperatorReconciler) Reconcile(ctx context.Context, req ctrl.Request) 
 
 	// Check if this Deployment already exists
 	found := &appsv1.Deployment{}
-	err = r.Client.Get(context.TODO(), types.NamespacedName{Name: instance.Name, Namespace: instance.Namespace}, found)
-
+	err = r.Client.Get(context.TODO(), types.NamespacedName{Name: operatorInstance.Name, Namespace: operatorInstance.Namespace}, found)
 	var result *ctrl.Result
-	result, err = r.EnsureDeployment(req, instance, r.CreateFrontendDeployment(instance))
+
+	// Check deployment
+	deploymentInstance := r.CreateFrontendDeployment(operatorInstance)
+	result, err = r.EnsureDeployment(req, operatorInstance, deploymentInstance)
 	if result != nil {
 		return *result, err
 	}
 
-	result, err = r.EnsureService(req, instance, r.CreateFrontendService(instance))
+	// Check service
+	serviceInstance := r.CreateFrontendService(operatorInstance)
+	result, err = r.EnsureService(req, operatorInstance, serviceInstance)
+	if result != nil {
+		return *result, err
+	}
+
+	// Check ingress
+	ingressInstance := r.CreateFrontendIngress(operatorInstance, serviceInstance)
+	result, err = r.EnsureIngress(req, operatorInstance, ingressInstance)
 	if result != nil {
 		return *result, err
 	}
@@ -124,6 +136,48 @@ func (r *HwOperatorReconciler) CreateFrontendService(v *hwoperatorcomv1.HwOperat
 
 	controllerutil.SetControllerReference(v, s, r.Scheme)
 	return s
+}
+
+func (r *HwOperatorReconciler) CreateFrontendIngress(
+	v *hwoperatorcomv1.HwOperator,
+	service *corev1.Service,
+) *networkingv1beta1.Ingress {
+	// Build a Service and deploys
+	pathTypePrefix := networkingv1beta1.PathTypePrefix
+	ingress := &networkingv1beta1.Ingress{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      "frontend-ingress",
+			Namespace: v.Namespace,
+			Annotations: map[string]string{
+				"kubernetes.io/ingress.class": "nginx",
+				"cert-manager.io/issuer":      "letsencrypt",
+			},
+		},
+		Spec: networkingv1beta1.IngressSpec{
+			TLS: []networkingv1beta1.IngressTLS{{
+				Hosts:      []string{v.Spec.Host},
+				SecretName: "frontend-secret",
+			}},
+			Rules: []networkingv1beta1.IngressRule{{
+				Host: v.Spec.Host,
+				IngressRuleValue: networkingv1beta1.IngressRuleValue{
+					HTTP: &networkingv1beta1.HTTPIngressRuleValue{
+						Paths: []networkingv1beta1.HTTPIngressPath{{
+							Path:     "/",
+							PathType: &pathTypePrefix,
+							Backend: networkingv1beta1.IngressBackend{
+								ServiceName: service.Name,
+								ServicePort: intstr.FromInt(80),
+							},
+						}},
+					},
+				},
+			}},
+		},
+	}
+
+	controllerutil.SetControllerReference(v, ingress, r.Scheme)
+	return ingress
 }
 
 func (r *HwOperatorReconciler) CreateFrontendDeployment(v *hwoperatorcomv1.HwOperator) *appsv1.Deployment {
@@ -230,6 +284,42 @@ func (r *HwOperatorReconciler) EnsureDeployment(
 	} else if err != nil {
 		// Error that isn't due to the deployment not existing
 		log.Log.Error(err, "Failed to get Deployment")
+		return &ctrl.Result{}, err
+	}
+
+	return nil, nil
+}
+
+func (r *HwOperatorReconciler) EnsureIngress(
+	request ctrl.Request,
+	instance *hwoperatorcomv1.HwOperator,
+	ingr *networkingv1beta1.Ingress,
+) (*ctrl.Result, error) {
+
+	// See if ingress already exists and create if it doesn't
+	found := &networkingv1beta1.Ingress{}
+	err := r.Client.Get(context.TODO(), types.NamespacedName{
+		Name:      ingr.Name,
+		Namespace: instance.Namespace,
+	}, found)
+	if err != nil && errors.IsNotFound(err) {
+		// Create the ingress
+		log.Log.Info("Creating a new Ingress", "Ingress.Namespace",
+			ingr.Namespace, "Ingress.Name", ingr.Name)
+		err = r.Client.Create(context.TODO(), ingr)
+
+		if err != nil {
+			// Ingress failed
+			log.Log.Error(err, "Failed to create new Ingress",
+				"Ingress.Namespace", ingr.Namespace, "Ingress.Name", ingr.Name)
+			return &ctrl.Result{}, err
+		} else {
+			// Ingress was successful
+			return nil, nil
+		}
+	} else if err != nil {
+		// Error that isn't due to the ingress not existing
+		log.Log.Error(err, "Failed to get Ingress")
 		return &ctrl.Result{}, err
 	}
 
