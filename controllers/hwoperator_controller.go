@@ -101,8 +101,8 @@ func (r *HwOperatorReconciler) Reconcile(ctx context.Context, req ctrl.Request) 
 		return *result, err
 	}
 
-	// Deployment and Service already exists - don't requeue
-	reqLogger.Info("Skip reconcile: Deployment and service already exists",
+	// Deployment, Service and Ingress already exist - don't requeue
+	reqLogger.Info("Skip reconcile: Deployment, Service and Ingress already exist",
 		"Deployment.Namespace", found.Namespace, "Deployment.Name", found.Name)
 
 	return ctrl.Result{}, nil
@@ -172,7 +172,7 @@ func (r *HwOperatorReconciler) CreateFrontendIngress(
 							PathType: &pathTypePrefix,
 							Backend: networkingv1beta1.IngressBackend{
 								ServiceName: service.Name,
-								ServicePort: intstr.FromInt(80),
+								ServicePort: intstr.FromInt(30685),
 							},
 						}},
 					},
@@ -233,7 +233,7 @@ func (r *HwOperatorReconciler) EnsureService(request ctrl.Request,
 ) (*ctrl.Result, error) {
 
 	// See if service already exists and create if it doesn't
-	found := &appsv1.Deployment{}
+	found := &corev1.Service{}
 	err := r.Client.Get(context.TODO(), types.NamespacedName{
 		Name:      s.Name,
 		Namespace: instance.Namespace,
