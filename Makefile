@@ -89,7 +89,7 @@ test: manifests generate fmt vet envtest ## Run tests.
 	go test ./... -coverprofile cover.out
 
 ##@ Custom commands
-hw-up: build docker-build docker-push deploy sample-create
+hw-up: build manifests docker-build docker-push deploy sample-create
 
 hw-down: sample-remove undeploy
 

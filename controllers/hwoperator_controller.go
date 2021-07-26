@@ -41,11 +41,13 @@ type HwOperatorReconciler struct {
 	Scheme *runtime.Scheme
 }
 
-//+kubebuilder:rbac:groups=hwoperator.com,resources=hwoperators,verbs=get;list;watch;create;update;patch;delete
-//+kubebuilder:rbac:groups=hwoperator.com,resources=hwoperators/status,verbs=get;update;patch
-//+kubebuilder:rbac:groups=hwoperator.com,resources=hwoperators/finalizers,verbs=update
-//+kubebuilder:rbac:groups=apps,resources=deployments,verbs=get;list;watch;create;update;patch;delete
-//+kubebuilder:rbac:groups=core,resources=pods,verbs=get;list;
+// +kubebuilder:rbac:groups=hwoperator.com,resources=hwoperators,verbs=get;list;watch;create;update;patch;delete
+// +kubebuilder:rbac:groups=hwoperator.com,resources=hwoperators/status,verbs=get;update;patch
+// +kubebuilder:rbac:groups=hwoperator.com,resources=hwoperators/finalizers,verbs=update
+// +kubebuilder:rbac:groups=apps,resources=deployments,verbs=get;list;watch;create;update;patch;delete
+// +kubebuilder:rbac:groups=core,resources=services,verbs=get;list;watch;create;update;patch;delete
+// +kubebuilder:rbac:groups=networking.k8s.io,resources=ingresses,verbs=get;list;watch;create;update;patch;delete
+// +kubebuilder:rbac:groups=core,resources=pods,verbs=get;list;watch
 
 // Reconcile is part of the main kubernetes reconciliation loop which aims to
 // move the current state of the cluster closer to the desired state.
@@ -110,6 +112,9 @@ func (r *HwOperatorReconciler) Reconcile(ctx context.Context, req ctrl.Request) 
 func (r *HwOperatorReconciler) SetupWithManager(mgr ctrl.Manager) error {
 	return ctrl.NewControllerManagedBy(mgr).
 		For(&hwoperatorcomv1.HwOperator{}).
+		Owns(&appsv1.Deployment{}).
+		Owns(&corev1.Service{}).
+		Owns(&networkingv1beta1.Ingress{}).
 		Complete(r)
 }
 
