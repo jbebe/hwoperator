@@ -4,6 +4,6 @@ metadata:
   name: hwoperator-sample
 spec:
   replicas: 2
-  host: hwoperator.com
+  host: hwoperator.example.com
   image: "nginx:latest"
 

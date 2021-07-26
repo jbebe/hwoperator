@@ -154,6 +154,10 @@ func (r *HwOperatorReconciler) CreateFrontendDeployment(v *hwoperatorcomv1.HwOpe
 							ContainerPort: 80,
 							Name:          "frontend",
 						}},
+						Env: []corev1.EnvVar{{
+							Name:  "NGINX_HOST",
+							Value: v.Spec.Host,
+						}},
 					}},
 				},
 			},
